@@ -1,0 +1,50 @@
+---
+# Backend Deployment Role
+
+- name: Create backend container
+  docker_container:
+    name: "{{ app_name }}-backend"
+    image: "{{ docker_images.backend }}"
+    state: present
+    restart_policy: "{{ backend.restart_policy }}"
+    ports:
+      - "{{ services.backend.external_port }}:{{ services.backend.internal_port }}"
+    env:
+      SPRING_DATASOURCE_URL: "{{ backend.environment.SPRING_DATASOURCE_URL }}"
+      SPRING_DATASOURCE_USERNAME: "{{ mysql_user }}"
+      SPRING_DATASOURCE_PASSWORD: "{{ mysql_password }}"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "{{ backend.environment.SPRING_JPA_HIBERNATE_DDL_AUTO }}"
+      SPRING_JPA_SHOW_SQL: "{{ backend.environment.SPRING_JPA_SHOW_SQL }}"
+    volumes:
+      - "{{ volumes.app_logs }}:/app/logs"
+    networks:
+      - name: "{{ app_network }}"
+    depends_on:
+      - "{{ app_name }}-mysql"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ services.backend.internal_port }}/user/login"]
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 40s
+
+- name: Wait for backend to be ready
+  pause:
+    seconds: 10
+  when: not ansible_check_mode
+
+- name: Verify backend health
+  shell: |
+    curl -s http://localhost:{{ services.backend.external_port }}/user/login -X OPTIONS \
+      -H "Origin: http://localhost" \
+      -H "Access-Control-Request-Method: POST"
+  register: backend_health
+  retries: 5
+  delay: 10
+  until: backend_health is succeeded
+  changed_when: false
+  ignore_errors: yes
+
+- name: Display backend container status
+  debug:
+    msg: "Backend container is running and accessible on port {{ services.backend.external_port }}"

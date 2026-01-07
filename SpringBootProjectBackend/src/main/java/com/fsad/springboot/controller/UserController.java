@@ -2,6 +2,7 @@ package com.fsad.springboot.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +14,7 @@ import com.fsad.springboot.service.UserdataService;
 
 @RestController
 @RequestMapping("/user")
+@CrossOrigin(origins = "http://localhost:5175", allowCredentials = "true")
 public class UserController 
 {
 	@Autowired
@@ -38,12 +40,27 @@ public class UserController
 	}
 	
 	@PostMapping("/login")
-	public ResponseEntity<Userdata> loginuser(@RequestBody JsonNode data)
+	public ResponseEntity<?> loginuser(@RequestBody JsonNode data)
 	{
-		String email=data.get("email").asText();
-		String pwd=data.get("password").asText();
-		Userdata u=userdataService.userlogin(email, pwd);
-		return ResponseEntity.ok(u);
+		try {
+			String email=data.get("email").asText();
+			String pwd=data.get("password").asText();
+			
+			if (email == null || email.isEmpty() || pwd == null || pwd.isEmpty()) {
+				return ResponseEntity.badRequest().body("{\"error\": \"Email and password are required\"}");
+			}
+			
+			Userdata u=userdataService.userlogin(email, pwd);
+			
+			if (u == null) {
+				return ResponseEntity.status(401).body("{\"error\": \"Invalid email or password\"}");
+			}
+			
+			return ResponseEntity.ok(u);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return ResponseEntity.status(500).body("{\"error\": \"" + e.getMessage() + "\"}");
+		}
 	}
 	
 	

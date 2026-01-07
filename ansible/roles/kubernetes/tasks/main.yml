@@ -1,0 +1,222 @@
+---
+# Kubernetes Deployment Role
+
+- name: Check kubectl availability
+  command: kubectl version --client
+  register: kubectl_version
+  changed_when: false
+
+- name: Create namespace
+  kubernetes.core.k8s:
+    name: "{{ kubernetes.namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: present
+
+- name: Create ConfigMap for backend configuration
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: backend-config
+      data:
+        SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-service:3306/{{ database.name }}"
+        SPRING_JPA_HIBERNATE_DDL_AUTO: update
+        SPRING_JPA_SHOW_SQL: "false"
+
+- name: Create Secret for database credentials
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: db-secret
+      type: Opaque
+      data:
+        MYSQL_USER: "{{ mysql_user | b64encode }}"
+        MYSQL_PASSWORD: "{{ mysql_password | b64encode }}"
+        MYSQL_ROOT_PASSWORD: "{{ mysql_root_password | b64encode }}"
+
+- name: Deploy MySQL to Kubernetes
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mysql-deployment
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: mysql
+        template:
+          metadata:
+            labels:
+              app: mysql
+          spec:
+            containers:
+            - name: mysql
+              image: "{{ docker_images.mysql }}"
+              ports:
+              - containerPort: 3306
+              envFrom:
+              - secretRef:
+                  name: db-secret
+              resources:
+                limits:
+                  cpu: "{{ kubernetes.resource_limits.mysql.cpu }}"
+                  memory: "{{ kubernetes.resource_limits.mysql.memory }}"
+              volumeMounts:
+              - name: mysql-storage
+                mountPath: /var/lib/mysql
+            volumes:
+            - name: mysql-storage
+              persistentVolumeClaim:
+                claimName: mysql-pvc
+
+- name: Create MySQL Service
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: mysql-service
+      spec:
+        selector:
+          app: mysql
+        ports:
+        - port: 3306
+          targetPort: 3306
+
+- name: Deploy Backend to Kubernetes
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: artgallery-backend
+      spec:
+        replicas: "{{ kubernetes.replica_count }}"
+        selector:
+          matchLabels:
+            app: artgallery-backend
+        template:
+          metadata:
+            labels:
+              app: artgallery-backend
+          spec:
+            containers:
+            - name: backend
+              image: "{{ docker_images.backend }}"
+              ports:
+              - containerPort: "{{ services.backend.internal_port }}"
+              envFrom:
+              - configMapRef:
+                  name: backend-config
+              - secretRef:
+                  name: db-secret
+              resources:
+                limits:
+                  cpu: "{{ kubernetes.resource_limits.backend.cpu }}"
+                  memory: "{{ kubernetes.resource_limits.backend.memory }}"
+              livenessProbe:
+                httpGet:
+                  path: /user/login
+                  port: "{{ services.backend.internal_port }}"
+                initialDelaySeconds: 40
+                periodSeconds: 10
+
+- name: Create Backend Service
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: artgallery-backend-service
+      spec:
+        type: NodePort
+        selector:
+          app: artgallery-backend
+        ports:
+        - port: "{{ services.backend.internal_port }}"
+          targetPort: "{{ services.backend.internal_port }}"
+          nodePort: 30855
+
+- name: Deploy Frontend to Kubernetes
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: artgallery-frontend
+      spec:
+        replicas: "{{ kubernetes.replica_count }}"
+        selector:
+          matchLabels:
+            app: artgallery-frontend
+        template:
+          metadata:
+            labels:
+              app: artgallery-frontend
+          spec:
+            containers:
+            - name: frontend
+              image: "{{ docker_images.frontend }}"
+              ports:
+              - containerPort: "{{ services.frontend.internal_port }}"
+              env:
+              - name: REACT_APP_API_URL
+                value: "http://artgallery-backend-service:{{ services.backend.internal_port }}"
+              resources:
+                limits:
+                  cpu: "{{ kubernetes.resource_limits.frontend.cpu }}"
+                  memory: "{{ kubernetes.resource_limits.frontend.memory }}"
+              livenessProbe:
+                httpGet:
+                  path: /
+                  port: "{{ services.frontend.internal_port }}"
+                initialDelaySeconds: 20
+                periodSeconds: 10
+
+- name: Create Frontend Service
+  kubernetes.core.k8s:
+    namespace: "{{ kubernetes.namespace }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: artgallery-frontend-service
+      spec:
+        type: NodePort
+        selector:
+          app: artgallery-frontend
+        ports:
+        - port: "{{ services.frontend.internal_port }}"
+          targetPort: "{{ services.frontend.internal_port }}"
+          nodePort: 31577
+
+- name: Verify Kubernetes deployments
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    namespace: "{{ kubernetes.namespace }}"
+  register: k8s_deployments
+
+- name: Display Kubernetes deployment status
+  debug:
+    msg: "Kubernetes deployments: {{ k8s_deployments.resources | map(attribute='metadata.name') | list }}"

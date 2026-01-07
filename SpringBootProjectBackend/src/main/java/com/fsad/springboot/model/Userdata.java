@@ -22,6 +22,9 @@ public class Userdata
     private String state;
     private String zipCode;
     private String country;
+    
+    public Userdata() {}
+    
 	public int getUserid() {
 		return userid;
 	}

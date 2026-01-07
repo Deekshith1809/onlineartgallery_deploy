@@ -1,0 +1,8 @@
+---
+# Docker Role Defaults
+docker_restart_policy: on-failure
+docker_restart_max_attempts: 5
+docker_log_driver: json-file
+docker_log_opts:
+  max_size: "10m"
+  max_file: "3"

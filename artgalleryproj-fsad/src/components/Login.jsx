@@ -7,11 +7,11 @@ const Login = () => {
   const [error, setError] = useState('');
   const { login } = useAuth();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    const success = login({ email, password });
+    const success = await login({ email, password });
     if (!success) {
       setError('Invalid email or password');
     }

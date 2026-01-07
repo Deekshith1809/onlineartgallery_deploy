@@ -1,0 +1,95 @@
+---
+# Docker Installation and Configuration Role
+
+- name: Install Docker prerequisites
+  package:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+  when: ansible_os_family == "Debian"
+  become: yes
+
+- name: Add Docker GPG key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  when: ansible_os_family == "Debian"
+  become: yes
+
+- name: Add Docker repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+  when: ansible_os_family == "Debian"
+  become: yes
+
+- name: Install Docker Engine
+  package:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+  when: ansible_os_family == "Debian"
+  become: yes
+
+- name: Install Docker on CentOS/RHEL
+  package:
+    name:
+      - docker
+      - docker-compose
+    state: present
+  when: ansible_os_family == "RedHat"
+  become: yes
+
+- name: Enable and start Docker service
+  systemd:
+    name: docker
+    enabled: yes
+    state: started
+  become: yes
+
+- name: Add user to docker group
+  user:
+    name: "{{ ansible_user_id }}"
+    groups: docker
+    append: yes
+  become: yes
+
+- name: Login to Docker Registry
+  docker_login:
+    registry: "{{ docker_registry }}"
+    username: "{{ docker_username }}"
+    password: "{{ docker_password }}"
+    state: present
+  when: docker_password is defined
+
+- name: Pull Docker images
+  docker_image:
+    name: "{{ item }}"
+    state: present
+    source: pull
+  loop:
+    - "{{ docker_images.backend }}"
+    - "{{ docker_images.frontend }}"
+    - "{{ docker_images.mysql }}"
+
+- name: Display Docker version
+  shell: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: Show Docker version
+  debug:
+    msg: "Docker version: {{ docker_version.stdout }}"
+
+- name: Create app network
+  docker_network:
+    name: "{{ app_network }}"
+    driver: "{{ network_driver }}"
+    state: present

@@ -1,0 +1,48 @@
+---
+# Database Installation and Configuration Role
+
+- name: Create MySQL container
+  docker_container:
+    name: "{{ app_name }}-mysql"
+    image: "{{ docker_images.mysql }}"
+    state: present
+    restart_policy: "{{ services.mysql.restart_policy | default('on-failure') }}"
+    ports:
+      - "{{ services.mysql.external_port }}:{{ services.mysql.internal_port }}"
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+      MYSQL_DATABASE: "{{ database.name }}"
+      MYSQL_USER: "{{ mysql_user }}"
+      MYSQL_PASSWORD: "{{ mysql_password }}"
+    volumes:
+      - "{{ volumes.mysql_data }}:/var/lib/mysql"
+    networks:
+      - name: "{{ app_network }}"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+- name: Wait for MySQL to be ready
+  pause:
+    seconds: 15
+  when: not ansible_check_mode
+
+- name: Check MySQL connectivity
+  shell: |
+    docker exec {{ app_name }}-mysql mysql -u{{ mysql_user }} -p{{ mysql_password }} -e "SELECT 1"
+  register: mysql_check
+  retries: 5
+  delay: 10
+  until: mysql_check is succeeded
+  changed_when: false
+
+- name: Import database schema
+  shell: |
+    docker exec -i {{ app_name }}-mysql mysql -u{{ mysql_user }} -p{{ mysql_password }} {{ database.name }} < /tmp/schema.sql
+  when: database_schema_file is defined
+  ignore_errors: yes
+
+- name: Display MySQL container status
+  debug:
+    msg: "MySQL container is running and ready"

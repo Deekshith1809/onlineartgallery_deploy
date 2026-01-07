@@ -1,0 +1,128 @@
+---
+# Rollback Playbook for Art Gallery Application
+# Use this to revert to previous versions or perform maintenance
+
+- name: Rollback Art Gallery Deployment
+  hosts: artgallery_servers
+  gather_facts: yes
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Confirm rollback action
+      pause:
+        prompt: "This will rollback the deployment. Continue? (yes/no)"
+      register: confirm_rollback
+
+    - name: Stop rollback if not confirmed
+      meta: end_play
+      when: confirm_rollback.user_input | lower != 'yes'
+
+    # Docker Rollback Tasks
+    - name: Stop Docker containers (if applicable)
+      block:
+        - name: Stop frontend
+          docker_container:
+            name: "{{ app_name }}-frontend"
+            state: stopped
+          ignore_errors: yes
+
+        - name: Stop backend
+          docker_container:
+            name: "{{ app_name }}-backend"
+            state: stopped
+          ignore_errors: yes
+
+        - name: Stop MySQL
+          docker_container:
+            name: "{{ app_name }}-mysql"
+            state: stopped
+          ignore_errors: yes
+
+      when: deployment_platform == 'docker'
+      tags: ['docker_rollback']
+
+    # Kubernetes Rollback Tasks
+    - name: Rollback Kubernetes deployments
+      block:
+        - name: Check current rollout history
+          command: kubectl rollout history deployment/artgallery-frontend -n "{{ kubernetes.namespace }}"
+          register: frontend_history
+          ignore_errors: yes
+
+        - name: Rollback frontend to previous version
+          command: kubectl rollout undo deployment/artgallery-frontend -n "{{ kubernetes.namespace }}"
+          ignore_errors: yes
+
+        - name: Rollback backend to previous version
+          command: kubectl rollout undo deployment/artgallery-backend -n "{{ kubernetes.namespace }}"
+          ignore_errors: yes
+
+        - name: Wait for rollback to complete
+          command: kubectl rollout status deployment/artgallery-frontend -n "{{ kubernetes.namespace }}"
+          ignore_errors: yes
+
+      when: deployment_platform == 'kubernetes'
+      tags: ['k8s_rollback']
+
+    # Backup and restore
+    - name: Restore database from backup
+      block:
+        - name: Check available backups
+          find:
+            paths: /backups
+            patterns: '*.sql'
+            recurse: no
+          register: available_backups
+          when: backup_restore_enabled | default(false)
+
+        - name: Display available backups
+          debug:
+            msg: "Available backups: {{ available_backups.files | map(attribute='path') | list }}"
+          when: available_backups is defined
+
+      when: deployment_platform == 'docker'
+      tags: ['database_restore']
+
+    - name: Post-rollback verification
+      block:
+        - name: Check container status (Docker)
+          shell: docker ps | grep artgallery
+          register: docker_status
+          when: deployment_platform == 'docker'
+          ignore_errors: yes
+
+        - name: Check pod status (Kubernetes)
+          command: kubectl get pods -n "{{ kubernetes.namespace }}"
+          register: k8s_status
+          when: deployment_platform == 'kubernetes'
+          ignore_errors: yes
+
+        - name: Display rollback status
+          debug:
+            msg: |
+              Rollback completed!
+              
+              Docker Status:
+              {{ docker_status.stdout | default('N/A') }}
+              
+              Kubernetes Status:
+              {{ k8s_status.stdout | default('N/A') }}
+
+    - name: Health check after rollback
+      uri:
+        url: "http://localhost:{{ services.backend.external_port }}/user/login"
+        method: OPTIONS
+        status_code: [200, 204, 405]
+      register: backend_health
+      retries: 5
+      delay: 10
+      until: backend_health is succeeded
+      ignore_errors: yes
+
+    - name: Display health check result
+      debug:
+        msg: |
+          Backend health check: {{ backend_health.status | default('FAILED') }}
+          
+          Please verify the application is running correctly.

@@ -15,26 +15,39 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (credentials) => {
-    // In a real app, this would be an API call
-    const mockUsers = {
-      'admin@example.com': { password: 'admin123', role: 'admin' },
-      'user@example.com': { password: 'user123', role: 'user' },
-      'artist@example.com': { password: 'artist123', role: 'artist' },
-    };
+  const login = async (credentials) => {
+    try {
+      const response = await fetch('http://localhost:2004/user/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: credentials.email,
+          password: credentials.password,
+        }),
+      });
 
-    const userData = mockUsers[credentials.email];
-    
-    if (userData && userData.password === credentials.password) {
-      const user = {
-        email: credentials.email,
-        role: userData.role,
-      };
-      setUser(user);
-      localStorage.setItem('user', JSON.stringify(user));
-      return true;
+      if (response.ok && response.status === 200) {
+        const userData = await response.json();
+        if (userData && userData.userid) {
+          const user = {
+            userid: userData.userid,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            fullName: userData.fullName,
+          };
+          setUser(user);
+          localStorage.setItem('user', JSON.stringify(user));
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {

@@ -1,0 +1,43 @@
+---
+# Frontend Deployment Role
+
+- name: Create frontend container
+  docker_container:
+    name: "{{ app_name }}-frontend"
+    image: "{{ docker_images.frontend }}"
+    state: present
+    restart_policy: "{{ frontend.restart_policy }}"
+    ports:
+      - "{{ services.frontend.external_port }}:{{ services.frontend.internal_port }}"
+    env:
+      REACT_APP_API_URL: "http://localhost:{{ services.backend.external_port }}"
+      REACT_APP_API_TIMEOUT: "30000"
+    networks:
+      - name: "{{ app_network }}"
+    depends_on:
+      - "{{ app_name }}-backend"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ services.frontend.internal_port }}/"]
+      timeout: 10s
+      interval: 30s
+      retries: 3
+      start_period: 20s
+
+- name: Wait for frontend to be ready
+  pause:
+    seconds: 10
+  when: not ansible_check_mode
+
+- name: Verify frontend accessibility
+  shell: |
+    curl -s -o /dev/null -w "%{http_code}" http://localhost:{{ services.frontend.external_port }}/
+  register: frontend_health
+  retries: 5
+  delay: 10
+  until: frontend_health.stdout == "200"
+  changed_when: false
+  ignore_errors: yes
+
+- name: Display frontend container status
+  debug:
+    msg: "Frontend container is running and accessible on port {{ services.frontend.external_port }}"

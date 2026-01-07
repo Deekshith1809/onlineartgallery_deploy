@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: artgallery-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: artgallery-backend
+  template:
+    metadata:
+      labels:
+        app: artgallery-backend
+    spec:
+      containers:
+        - name: artgallery-backend
+          image: boppanadeekshith/artgallery-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 2004   # Spring Boot is running on 2004
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: artgallery-backend-service
+spec:
+  selector:
+    app: artgallery-backend
+  ports:
+    - protocol: TCP
+      port: 2004        # Service port
+      targetPort: 2004  # Pod port (Spring Boot)
+  type: NodePort

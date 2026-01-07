@@ -1,0 +1,87 @@
+---
+# Main Variables for Art Gallery Deployment
+
+# Deployment Configuration
+deployment_env: production
+deployment_platform: docker  # Options: docker, kubernetes
+enable_monitoring: true
+
+# Container Registry
+docker_registry: docker.io
+docker_images:
+  backend: deekshith1809/artgallery-backend:latest
+  frontend: deekshith1809/artgallery-frontend:latest
+  mysql: mysql:8
+
+# Network Configuration
+app_network: artgallery-network
+network_driver: bridge
+
+# Service Ports
+services:
+  mysql:
+    internal_port: 3306
+    external_port: 3307
+  backend:
+    internal_port: 2004
+    external_port: 2025
+  frontend:
+    internal_port: 80
+    external_port: 3000
+
+# Volume Configuration
+volumes:
+  mysql_data: mysql_data_volume
+  app_logs: app_logs_volume
+
+# Database Configuration
+database:
+  name: ramanadb
+  charset: utf8mb4
+  collation: utf8mb4_unicode_ci
+  
+# Backend Configuration
+backend:
+  restart_policy: on-failure
+  restart_max_attempts: 5
+  environment:
+    SPRING_DATASOURCE_URL: "jdbc:mysql://mysqldb:3306/ramanadb"
+    SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+    SPRING_JPA_SHOW_SQL: "false"
+
+# Frontend Configuration
+frontend:
+  restart_policy: on-failure
+  restart_max_attempts: 5
+  nginx_worker_processes: auto
+
+# Kubernetes Configuration
+kubernetes:
+  namespace: artgallery
+  replica_count: 2
+  resource_limits:
+    backend:
+      cpu: "500m"
+      memory: "1Gi"
+    frontend:
+      cpu: "250m"
+      memory: "512Mi"
+    mysql:
+      cpu: "1000m"
+      memory: "2Gi"
+  
+# Health Check Configuration
+health_checks:
+  enabled: true
+  backend_path: /user/login
+  frontend_path: /
+  timeout: 10
+  interval: 30
+  retries: 3
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "daily"
+  retention_days: 7
+  backup_path: /backups

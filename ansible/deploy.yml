@@ -1,0 +1,64 @@
+---
+# Main Ansible Playbook for Art Gallery Application Deployment
+# This playbook automates the deployment of the Art Gallery application
+# including frontend, backend, MySQL database, and Kubernetes orchestration
+
+- name: Deploy Art Gallery Application
+  hosts: artgallery_servers
+  gather_facts: yes
+  vars_files:
+    - vars/main.yml
+    - vars/secrets.yml
+
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          ========================================
+          Art Gallery Application Deployment
+          ========================================
+          Environment: {{ deployment_env }}
+          Platform: {{ deployment_platform }}
+          Docker Registry: {{ docker_registry }}
+          ========================================
+
+    - name: Check required variables
+      assert:
+        that:
+          - docker_username is defined
+          - mysql_root_password is defined
+          - mysql_user is defined
+          - mysql_password is defined
+        fail_msg: "Required variables not defined. Check vars/secrets.yml"
+
+  roles:
+    - role: docker
+      tags: ['docker']
+    - role: database
+      tags: ['database', 'mysql']
+    - role: backend
+      tags: ['backend']
+    - role: frontend
+      tags: ['frontend']
+    - role: kubernetes
+      tags: ['kubernetes', 'k8s']
+      when: deployment_platform == 'kubernetes'
+    - role: monitoring
+      tags: ['monitoring']
+      when: enable_monitoring | default(false)
+
+  post_tasks:
+    - name: Verify application deployment
+      debug:
+        msg: "Art Gallery application deployment completed successfully!"
+
+    - name: Display access information
+      debug:
+        msg: |
+          ========================================
+          Deployment Complete!
+          ========================================
+          Frontend: http://{{ ansible_host }}:{{ frontend_port }}
+          Backend: http://{{ ansible_host }}:{{ backend_port }}
+          MySQL: {{ ansible_host }}:{{ mysql_port }}
+          ========================================

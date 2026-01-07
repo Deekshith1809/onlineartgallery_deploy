@@ -1,0 +1,48 @@
+---
+# Monitoring and Observability Role
+
+- name: Deploy Prometheus for monitoring
+  docker_container:
+    name: "{{ app_name }}-prometheus"
+    image: prom/prometheus:latest
+    state: present
+    restart_policy: on-failure
+    ports:
+      - "9090:9090"
+    volumes:
+      - /tmp/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - name: "{{ app_network }}"
+  when: enable_monitoring
+
+- name: Deploy Grafana for visualization
+  docker_container:
+    name: "{{ app_name }}-grafana"
+    image: grafana/grafana:latest
+    state: present
+    restart_policy: on-failure
+    ports:
+      - "3001:3000"
+    env:
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_INSTALL_PLUGINS: "grafana-piechart-panel"
+    networks:
+      - name: "{{ app_network }}"
+  when: enable_monitoring
+
+- name: Setup application health checks
+  cron:
+    name: "Health check for Art Gallery services"
+    minute: "*/5"
+    hour: "*"
+    job: "/usr/local/bin/healthcheck.sh"
+    state: present
+  when: enable_monitoring
+
+- name: Display monitoring endpoints
+  debug:
+    msg: |
+      Monitoring Endpoints:
+      - Prometheus: http://localhost:9090
+      - Grafana: http://localhost:3001 (admin/admin)
+  when: enable_monitoring
