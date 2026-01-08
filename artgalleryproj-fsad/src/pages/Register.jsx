@@ -37,7 +37,7 @@ const Register = () => {
     }
 
     try {
-      const response = await axios.post('http://artgallery-htya.onrender.com/user/register', {
+      const response = await axios.post('https://artgallery-htya.onrender.com/user/register', {
         firstName: formData.firstName,
         lastName: formData.lastName,
         fullName: `${formData.firstName} ${formData.lastName}`,
