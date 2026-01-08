@@ -14,7 +14,7 @@ import com.fsad.springboot.service.UserdataService;
 
 @RestController
 @RequestMapping("/user")
-@CrossOrigin(origins = "http://localhost:5175", allowCredentials = "true")
+@CrossOrigin(origins = "https://artgallery-frontend-l839.onrender.com", allowCredentials = "true")
 public class UserController 
 {
 	@Autowired
