@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      const response = await fetch('http://localhost:2004/user/login', {
+      const response = await fetch('http://artgallery-htya.onrender.com/user/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
