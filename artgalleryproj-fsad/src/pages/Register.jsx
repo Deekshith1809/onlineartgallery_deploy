@@ -1,4 +1,5 @@
-import { useState } from 'react';
+35
+  import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
@@ -36,7 +37,7 @@ const Register = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:2004/user/register', {
+      const response = await axios.post('http://artgallery-htya.onrender.com/user/register', {
         firstName: formData.firstName,
         lastName: formData.lastName,
         fullName: `${formData.firstName} ${formData.lastName}`,
