@@ -21,8 +21,7 @@ public class UserController
 	private UserdataService userdataService;
 	
 	@PostMapping("/register")
-	public String adduser(@RequestBody Userdata u)
-	{
+ public ResponseEntity<?> adduser(@RequestBody Userdata u)	{
 //		Userdata u=new Userdata();
 //		u.setFirstName(data.get("firstName").asText());
 //		u.setLastName(data.get("lastName").asText());
@@ -36,7 +35,7 @@ public class UserController
 //		u.setZipCode(data.get("zipCode").asText());
 //		u.setCountry(data.get("country").asText());
 		userdataService.signupuser(u);
-		return "Succes";
+		return ResponseEntity.status(201).body(u);
 	}
 	
 	@PostMapping("/login")
