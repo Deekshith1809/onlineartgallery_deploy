@@ -22,7 +22,7 @@ const ArtistRegister = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:2004/artist/register', formData);
+      const response = await axios.post(''https://artgallery-htya.onrender.com/user/register'', formData);
       toast.success('Registration successful!');
       navigate('/login');
     } catch (error) {
